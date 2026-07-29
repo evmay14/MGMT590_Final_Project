@@ -8,7 +8,7 @@ decision-support application.
 This repository is built incrementally across six phases. **This is
 Phase 1: Project Architecture & Data Foundation.**
 
-## Phase 1 deliverables (this commit)
+## Phase 1 deliverables
 
 - GitHub-ready project structure
 - `requirements.txt`
@@ -16,11 +16,39 @@ Phase 1: Project Architecture & Data Foundation.**
 - `src/utils.py` — reusable ingestion, validation, cleaning, preprocessing,
   splitting, and serialization functions
 - `src/train_models.py` — Phase 1 orchestration (`run_phase1_pipeline`)
-  plus fixed-signature Phase 2 stubs (model training not yet implemented)
+  plus fixed-signature Phase 3 stubs (model training not yet implemented)
 - `notebooks/MGMT590_LendingClub_Analysis.ipynb` — executed walkthrough of
   the full Phase 1 pipeline
 - Leakage-safe train/validation/test split
 - Serialized (`joblib`) `ColumnTransformer` preprocessing pipeline
+
+## Phase 2 deliverables (this commit)
+
+- `src/eda_utils.py` — reusable, additive module (does not modify Phase 1
+  files) providing:
+  - Dataset overview / variable-description helpers
+  - Extended descriptive statistics (mean, median, std, variance, min,
+    max, quartiles, skewness, kurtosis) and categorical frequency tables
+  - A consistent, business-styled plotting library (distributions,
+    boxplots, violin plots, scatter/hexbin, correlation heatmap,
+    pairplot, missing-value heatmap/bar, outlier grids)
+  - Default-rate-by-group analysis with quartile/band binning helpers
+  - Statistical testing: Pearson/Spearman correlation, chi-square,
+    Welch's t-test, one-way ANOVA, Wilson-score confidence intervals —
+    each returned as a standardized `TestResult` with null/alternative
+    hypotheses, statistic, p-value, effect size, and a plain-language
+    business interpretation
+  - Multicollinearity diagnostics: high-correlation-pair detection and
+    Variance Inflation Factors (VIF)
+- `notebooks/MGMT590_LendingClub_EDA_Phase2.ipynb` — executed, executive-
+  quality EDA notebook covering dataset overview, descriptive statistics,
+  30+ visualizations, default-rate analysis, all seven research
+  questions, statistical testing, feature-relationship/multicollinearity
+  assessment, and a Phase 3 hand-off summary. **No modeling is performed
+  in this notebook** — see `src/train_models.py`'s Phase 3 stubs for
+  where that logic will live in Phase 3.
+- `tests/test_eda_utils.py` — unit tests for every statistical/table
+  function in `eda_utils.py` (plotting functions are smoke-tested)
 
 ## Project structure
 
@@ -33,14 +61,14 @@ mgmt590_capstone/
 │   ├── __init__.py
 │   ├── config.py            # paths, constants, column groups
 │   ├── utils.py             # ingestion / validation / cleaning / pipeline / split / serialization
-│   └── train_models.py      # Phase 1 orchestration + Phase 2 stubs
+│   └── train_models.py      # Phase 1 orchestration + Phase 3 stubs
 ├── notebooks/
 │   └── MGMT590_LendingClub_Analysis.ipynb
 ├── data/
 │   ├── raw/                 # place the real LendingClub Indiana extract here
 │   ├── processed/           # cleaned dataset (generated)
 │   └── splits/              # X/y train/val/test CSVs (generated)
-├── models/                  # serialized trained models (Phase 2+)
+├── models/                  # serialized trained models (Phase 3+)
 ├── pipelines/               # serialized fitted preprocessing pipeline
 ├── logs/                    # pipeline run logs
 ├── app/                     # Streamlit application (Phase 5/6)
@@ -90,7 +118,7 @@ Programmatic usage:
 from src.train_models import run_phase1_pipeline
 
 artifacts = run_phase1_pipeline()
-artifacts.X_train, artifacts.y_train   # ready for Phase 2 model training
+artifacts.X_train, artifacts.y_train   # ready for Phase 3 model training
 artifacts.preprocessor                  # fitted ColumnTransformer
 ```
 
@@ -107,10 +135,10 @@ artifacts.preprocessor                  # fitted ColumnTransformer
 
 | Phase | Scope |
 |---|---|
-| 1 (this repo) | Architecture, ingestion, validation, cleaning, preprocessing pipeline, leakage-safe split |
-| 2 | Model training: Logistic Regression → Random Forest → XGBoost |
-| 3 | Model evaluation, comparison, and selection |
-| 4 | Feature importance / interpretability analysis |
+| 1 | Architecture, ingestion, validation, cleaning, preprocessing pipeline, leakage-safe split |
+| 2 (this commit) | Exploratory data analysis, descriptive statistics, default-rate analysis, research-question analysis, statistical testing, feature-relationship assessment |
+| 3 | Model training: Logistic Regression → Random Forest → XGBoost |
+| 4 | Model evaluation, comparison, and selection |
 | 5 | Streamlit decision-support application |
 | 6 | Deployment, documentation, final report |
 
@@ -121,7 +149,7 @@ artifacts.preprocessor                  # fitted ColumnTransformer
 - The preprocessing pipeline in `pipelines/preprocessing_pipeline.joblib`
   is fit on `X_train` only — always `.transform()` (never re-`.fit()`) it
   on validation/test/live data.
-- `src/train_models.py` already declares the Phase 2 function signatures
+- `src/train_models.py` already declares the Phase 3 function signatures
   (`train_logistic_regression`, `train_random_forest`, `train_xgboost`,
-  `evaluate_model`) — implement their bodies in Phase 2 rather than
+  `evaluate_model`) — implement their bodies in Phase 3 rather than
   restructuring the module.

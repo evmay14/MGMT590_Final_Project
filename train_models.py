@@ -21,15 +21,15 @@ Running this module end-to-end (``python -m src.train_models``) will:
     7. Serialize the fitted preprocessor and save all split artifacts.
     8. Save the full cleaned (pre-split) dataset for EDA/reporting use.
 
-PHASE 2 SCOPE (NOT implemented here — see NotImplementedError stubs below)
+PHASE 3 SCOPE (NOT implemented here — see NotImplementedError stubs below)
 ----------------------------------------------------------------------------
 Model training (Logistic Regression -> Random Forest -> XGBoost),
 cross-validation, hyperparameter tuning, and evaluation-metric reporting
-will be implemented in Phase 2 inside the functions already stubbed out
+will be implemented in Phase 3 inside the functions already stubbed out
 below (``train_logistic_regression``, ``train_random_forest``,
 ``train_xgboost``, ``evaluate_model``). They intentionally raise
 ``NotImplementedError`` rather than returning fake/placeholder results,
-per project requirements. Their signatures are fixed now so Phase 2 can
+per project requirements. Their signatures are fixed now so Phase 3 can
 implement them without changing how ``main()`` or any other module calls
 them.
 
@@ -56,7 +56,7 @@ logger = utils.get_logger(__name__)
 class Phase1Artifacts:
     """
     Container for every artifact produced by the Phase 1 data pipeline,
-    returned by ``run_phase1_pipeline()`` so callers (notebook, Phase 2
+    returned by ``run_phase1_pipeline()`` so callers (notebook, Phase 3
     script, tests) can access in-memory results without re-reading from
     disk if they don't want to.
 
@@ -161,7 +161,7 @@ def run_phase1_pipeline(persist: bool = True) -> Phase1Artifacts:
 # ---------------------------------------------------------------------------
 # These are intentionally NOT implemented with placeholder/fake models.
 # Calling them in Phase 1 will raise NotImplementedError so it is
-# impossible to mistake a stub for a real, evaluated model. Phase 2 will
+# impossible to mistake a stub for a real, evaluated model. Phase 3 will
 # fill in the bodies without needing to change any calling code, since the
 # preprocessor + splits they depend on are already produced and persisted
 # by run_phase1_pipeline() above.
@@ -170,46 +170,46 @@ def run_phase1_pipeline(persist: bool = True) -> Phase1Artifacts:
 
 def train_logistic_regression(X_train: pd.DataFrame, y_train: pd.Series) -> Any:
     """
-    (Phase 2) Fit a Logistic Regression baseline classifier on the
+    (Phase 3) Fit a Logistic Regression baseline classifier on the
     preprocessed training features.
 
     Not implemented in Phase 1 — raises NotImplementedError by design so
     no placeholder/fake model results are produced.
     """
     raise NotImplementedError(
-        "train_logistic_regression will be implemented in Phase 2."
+        "train_logistic_regression will be implemented in Phase 3."
     )
 
 
 def train_random_forest(X_train: pd.DataFrame, y_train: pd.Series) -> Any:
     """
-    (Phase 2) Fit a Random Forest classifier, including hyperparameter
+    (Phase 3) Fit a Random Forest classifier, including hyperparameter
     tuning, on the preprocessed training features.
 
     Not implemented in Phase 1 — raises NotImplementedError by design.
     """
-    raise NotImplementedError("train_random_forest will be implemented in Phase 2.")
+    raise NotImplementedError("train_random_forest will be implemented in Phase 3.")
 
 
 def train_xgboost(X_train: pd.DataFrame, y_train: pd.Series) -> Any:
     """
-    (Phase 2) Fit an XGBoost classifier, including hyperparameter tuning,
+    (Phase 3) Fit an XGBoost classifier, including hyperparameter tuning,
     on the preprocessed training features.
 
     Not implemented in Phase 1 — raises NotImplementedError by design.
     """
-    raise NotImplementedError("train_xgboost will be implemented in Phase 2.")
+    raise NotImplementedError("train_xgboost will be implemented in Phase 3.")
 
 
 def evaluate_model(model: Any, X: pd.DataFrame, y: pd.Series) -> Dict[str, float]:
     """
-    (Phase 2) Compute the standard evaluation-metric suite (accuracy,
+    (Phase 3) Compute the standard evaluation-metric suite (accuracy,
     precision, recall, F1, ROC-AUC, PR-AUC, confusion matrix) for a
     fitted model on a given feature/target set.
 
     Not implemented in Phase 1 — raises NotImplementedError by design.
     """
-    raise NotImplementedError("evaluate_model will be implemented in Phase 2.")
+    raise NotImplementedError("evaluate_model will be implemented in Phase 3.")
 
 
 def main() -> None:
@@ -229,7 +229,7 @@ def main() -> None:
           f"{len(utils.get_output_feature_names(artifacts.preprocessor)):,}")
     print(f"Cleaned dataset saved to:   {config.CLEANED_DATA_PATH}")
     print(f"Preprocessor saved to:      {config.PREPROCESSOR_PATH}")
-    print("Phase 2 (model training) is intentionally not yet implemented.")
+    print("Phase 3 (model training) is intentionally not yet implemented.")
 
 
 if __name__ == "__main__":
