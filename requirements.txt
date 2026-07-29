@@ -1,0 +1,30 @@
+# Core data handling
+pandas>=2.1,<3.0
+numpy>=1.26,<2.0
+
+# Machine learning
+scikit-learn>=1.4,<1.6
+xgboost>=2.0,<3.0
+imbalanced-learn>=0.12,<1.0
+
+# Serialization
+joblib>=1.3,<2.0
+
+# Visualization (EDA + Streamlit charts)
+matplotlib>=3.8,<4.0
+seaborn>=0.13,<1.0
+plotly>=5.20,<6.0
+
+# Deployment (final capstone deliverable)
+streamlit>=1.35,<2.0
+
+# Notebook environment
+jupyter>=1.0,<2.0
+notebook>=7.0,<8.0
+ipykernel>=6.29,<7.0
+
+# Testing
+pytest>=8.0,<9.0
+
+# Utilities
+python-dateutil>=2.9,<3.0
