@@ -5,8 +5,9 @@ DY2, Purdue University). Predicts loan default risk for Indiana
 LendingClub borrowers and supports lending decisions through a Streamlit
 decision-support application.
 
-This repository is built incrementally across six phases. **This is
-Phase 1: Project Architecture & Data Foundation.**
+This repository is built incrementally across six phases. **Phases 1-3
+(data pipeline, exploratory analysis, and supervised modeling) and
+Phase 4A (explainability + risk scoring) are complete.**
 
 ## Phase 1 deliverables
 
@@ -15,14 +16,14 @@ Phase 1: Project Architecture & Data Foundation.**
 - `src/config.py` — all paths, constants, and column definitions
 - `src/utils.py` — reusable ingestion, validation, cleaning, preprocessing,
   splitting, and serialization functions
-- `src/train_models.py` — Phase 1 orchestration (`run_phase1_pipeline`)
-  plus fixed-signature Phase 3 stubs (model training not yet implemented)
+- `src/train_models.py` — Phase 1 orchestration (`run_phase1_pipeline`);
+  Phase 3 model training (`run_phase3_pipeline`) implemented as of Phase 3
 - `notebooks/MGMT590_LendingClub_Analysis.ipynb` — executed walkthrough of
   the full Phase 1 pipeline
 - Leakage-safe train/validation/test split
 - Serialized (`joblib`) `ColumnTransformer` preprocessing pipeline
 
-## Phase 2 deliverables (this commit)
+## Phase 2 deliverables
 
 - `src/eda_utils.py` — reusable, additive module (does not modify Phase 1
   files) providing:
@@ -44,11 +45,116 @@ Phase 1: Project Architecture & Data Foundation.**
   quality EDA notebook covering dataset overview, descriptive statistics,
   30+ visualizations, default-rate analysis, all seven research
   questions, statistical testing, feature-relationship/multicollinearity
-  assessment, and a Phase 3 hand-off summary. **No modeling is performed
-  in this notebook** — see `src/train_models.py`'s Phase 3 stubs for
-  where that logic will live in Phase 3.
+  assessment, and a Phase 3 hand-off summary. No modeling is performed
+  in this notebook.
 - `tests/test_eda_utils.py` — unit tests for every statistical/table
   function in `eda_utils.py` (plotting functions are smoke-tested)
+
+## Phase 3 deliverables (this commit)
+
+**Files Modified:**
+- `src/config.py` — appended a Phase 3 section (new `REPORTS_DIR`,
+  model/report artifact paths, CV settings, hyperparameter search
+  spaces, threshold/cost constants); Phases 1-2 sections untouched.
+- `src/train_models.py` — the four Phase 3 stubs
+  (`train_logistic_regression`, `train_random_forest`, `train_xgboost`,
+  `evaluate_model`) are now implemented (they delegate to
+  `model_utils.py`); added `Phase3Artifacts` + `run_phase3_pipeline()`;
+  `main()` now runs Phase 1 then Phase 3. `run_phase1_pipeline()` and
+  everything else from Phase 1 is unchanged.
+- `requirements.txt` — added `scipy`/`statsmodels` (already required by
+  Phase 2's `eda_utils.py`; formalized here).
+
+**Files Created:**
+- `src/model_utils.py` — reusable Phase 3 ML framework: pipeline
+  builders (preprocessing + classifier, leakage-safe), GridSearchCV /
+  RandomizedSearchCV wrappers, Stratified K-Fold CV reporting, the full
+  classification-metric suite (incl. calibration error), threshold
+  optimization (cost-based), feature importance (coefficients/odds
+  ratios, impurity, permutation, XGBoost gain/weight/cover), plotting
+  functions (confusion matrix, ROC, PR, calibration, learning curve,
+  validation curve, importance/coefficient plots, probability
+  distribution, threshold analysis), and the model-comparison table
+  builder.
+- `notebooks/MGMT590_LendingClub_Modeling_Phase3.ipynb` — executed,
+  executive-quality notebook: algorithm rationale for all three models,
+  cross-validated hyperparameter search, full metric suite, diagnostic
+  visualizations, feature importance (3 methods per applicable model),
+  threshold optimization, executive model-comparison table with a
+  production-model recommendation, robustness assessment, cross-model
+  business interpretation, and a Phase 4 hand-off summary.
+- `tests/test_model_utils.py` — 22 unit tests covering metrics,
+  calibration error, threshold optimization, feature importance, and
+  hyperparameter search.
+- `tests/build_notebook_phase3.py` — regenerates the Phase 3 notebook.
+
+**Files Unchanged:** `src/utils.py`, `src/eda_utils.py`,
+`notebooks/MGMT590_LendingClub_Analysis.ipynb`,
+`notebooks/MGMT590_LendingClub_EDA_Phase2.ipynb`,
+`tests/test_utils.py`, `tests/test_eda_utils.py`,
+`tests/generate_synthetic_fixture.py`, `.gitignore`.
+
+**Not implemented (explicitly deferred to Phase 4):** SHAP explanations,
+borrower clustering. `src/train_models.py`'s Phase 3 functions and
+`model_utils.py` are stable, importable interfaces for Phase 4 to build
+on without modification.
+
+## Phase 4A deliverables (this commit)
+
+**Files Modified:**
+- `src/config.py` — appended a Phase 4A section (new `EXPLAINABILITY_DIR`,
+  `PRODUCTION_MODEL_KEY`, SHAP sample-size settings, explainability
+  artifact paths); Phases 1-3 sections untouched.
+- `requirements.txt` — added `shap`.
+
+**Files Created:**
+- `src/configurable_thresholds.py` — `RiskThresholdConfig` dataclass
+  (risk tiers, lending actions, interest-rate adjustments, loan-grade
+  bands) with a JSON load/save API so a lending-operations stakeholder
+  can edit `reports/risk_threshold_config.json` directly — no code
+  change or redeploy required. Self-bootstraps built-in defaults to
+  disk on first run; `validate()` sanity-checks tier coverage/overlap.
+- `src/interpretation_utils.py` — feature-name humanization (technical
+  → business-friendly labels), research-question linkage, executive
+  business-summary text generation (borrower-level and model-level),
+  fairness reporting (reuses `model_utils.compute_classification_metrics`
+  per subgroup), and `ExportableReport` (Markdown/JSON, Streamlit-
+  download-button-ready).
+- `src/risk_scoring.py` — `RiskScoringEngine`: probability → 0-100 risk
+  score → risk tier → confidence score → recommended action / interest
+  rate / loan grade, entirely driven by `RiskThresholdConfig` (no
+  hard-coded thresholds). Also adds `expand_threshold_analysis` /
+  `plot_expanded_threshold_analysis`, extending Phase 3's threshold
+  table with approval rate and false-positive/false-negative rate.
+- `src/explainability.py` — `ExplainabilityEngine`: SHAP-based global
+  and local explanations (`TreeExplainer` for Random Forest/XGBoost,
+  `LinearExplainer` for Logistic Regression), every method from the
+  Phase 4A brief (`explain_prediction`, `explain_global_model`,
+  `generate_shap_summary` [beeswarm + bar], `generate_waterfall_plot`,
+  `generate_force_plot`, `generate_dependence_plot`,
+  `generate_decision_plot`, `summarize_feature_importance`,
+  `generate_business_summary`), plus feature-interaction analysis (the
+  5 required pairs), Partial Dependence/ICE plots, exportable reports,
+  and `persist_explainability_artifacts()`.
+- `notebooks/MGMT590_LendingClub_Explainability_Phase4A.ipynb` —
+  executed, executive-quality notebook demonstrating all four modules
+  end-to-end against the Phase 3 production model.
+- `tests/test_configurable_thresholds.py`, `tests/test_interpretation_utils.py`,
+  `tests/test_risk_scoring.py`, `tests/test_explainability.py` — 83 new
+  unit tests.
+- `tests/build_notebook_phase4a.py` — regenerates the Phase 4A notebook.
+
+**Files Unchanged:** `src/utils.py`, `src/eda_utils.py`,
+`src/model_utils.py`, `src/train_models.py`, all Phase 1-3 notebooks and
+tests, `.gitignore`.
+
+**Not implemented (explicitly deferred):** the Streamlit dashboard
+(Phase 5) and borrower clustering (Phase 4B). `ExplainabilityEngine` and
+`RiskScoringEngine` are stable, Streamlit-ready interfaces — every
+plotting method returns a `matplotlib.figure.Figure` and every summary
+is a plain dataclass/DataFrame/string, ready for direct use in a future
+`st.pyplot(...)` / `st.dataframe(...)` / `st.download_button(...)` call
+without modification.
 
 ## Project structure
 
@@ -59,22 +165,43 @@ mgmt590_capstone/
 ├── .gitignore
 ├── src/
 │   ├── __init__.py
-│   ├── config.py            # paths, constants, column groups
-│   ├── utils.py             # ingestion / validation / cleaning / pipeline / split / serialization
-│   └── train_models.py      # Phase 1 orchestration + Phase 3 stubs
+│   ├── config.py                  # paths, constants, column groups, CV/search/explainability settings
+│   ├── utils.py                    # ingestion / validation / cleaning / pipeline / split / serialization
+│   ├── eda_utils.py                # Phase 2: descriptive stats, plotting, statistical tests
+│   ├── model_utils.py              # Phase 3: ML pipelines, hyperparameter search, metrics, importance
+│   ├── train_models.py            # Phase 1 + Phase 3 orchestration (run_phase1_pipeline, run_phase3_pipeline)
+│   ├── configurable_thresholds.py # Phase 4A: risk-tier/action/rate/grade business-policy config
+│   ├── interpretation_utils.py    # Phase 4A: feature humanization, business text, fairness, exports
+│   ├── risk_scoring.py            # Phase 4A: RiskScoringEngine
+│   └── explainability.py          # Phase 4A: ExplainabilityEngine (SHAP)
 ├── notebooks/
-│   └── MGMT590_LendingClub_Analysis.ipynb
+│   ├── MGMT590_LendingClub_Analysis.ipynb              # Phase 1
+│   ├── MGMT590_LendingClub_EDA_Phase2.ipynb            # Phase 2
+│   ├── MGMT590_LendingClub_Modeling_Phase3.ipynb       # Phase 3
+│   └── MGMT590_LendingClub_Explainability_Phase4A.ipynb # Phase 4A
 ├── data/
 │   ├── raw/                 # place the real LendingClub Indiana extract here
 │   ├── processed/           # cleaned dataset (generated)
 │   └── splits/              # X/y train/val/test CSVs (generated)
-├── models/                  # serialized trained models (Phase 3+)
-├── pipelines/               # serialized fitted preprocessing pipeline
+├── models/                  # serialized trained models (logistic_regression/random_forest/xgboost .joblib)
+├── pipelines/               # serialized fitted preprocessing pipeline (Phase 1/2 use)
+├── reports/                 # Phase 3 evaluation artifacts + Phase 4A risk_threshold_config.json
+│   └── explainability/      # Phase 4A: SHAP importance, business summaries, metadata, fairness report
 ├── logs/                    # pipeline run logs
-├── app/                     # Streamlit application (Phase 5/6)
+├── app/                     # Streamlit application (Phase 5)
 └── tests/
-    ├── generate_synthetic_fixture.py  # synthetic data for local pipeline testing only
-    └── build_notebook.py               # regenerates the analysis notebook
+    ├── generate_synthetic_fixture.py     # synthetic data for local pipeline testing only
+    ├── build_notebook.py                  # regenerates the Phase 1 notebook
+    ├── build_notebook_phase2.py           # regenerates the Phase 2 notebook
+    ├── build_notebook_phase3.py           # regenerates the Phase 3 notebook
+    ├── build_notebook_phase4a.py          # regenerates the Phase 4A notebook
+    ├── test_utils.py
+    ├── test_eda_utils.py
+    ├── test_model_utils.py
+    ├── test_configurable_thresholds.py
+    ├── test_interpretation_utils.py
+    ├── test_risk_scoring.py
+    └── test_explainability.py
 ```
 
 ## Setup
@@ -101,25 +228,34 @@ testing only):
 python tests/generate_synthetic_fixture.py
 ```
 
-## Running the Phase 1 pipeline
+## Running the pipeline (Phase 1 + Phase 3)
 
 ```bash
 python -m src.train_models
 ```
 
-This ingests, validates, cleans, splits, and fits/serializes the
-preprocessing pipeline, logging every step to `logs/pipeline.log` and
-printing a summary. Equivalently, open and run
-`notebooks/MGMT590_LendingClub_Analysis.ipynb`.
+This runs Phase 1 (ingest, validate, clean, split, fit/serialize the
+preprocessing pipeline) followed by Phase 3 (train + tune Logistic
+Regression, Random Forest, and XGBoost; serialize models and evaluation
+artifacts), logging every step to `logs/pipeline.log` and printing a
+summary of both phases. Equivalently, open and run
+`notebooks/MGMT590_LendingClub_Analysis.ipynb` (Phase 1),
+`notebooks/MGMT590_LendingClub_EDA_Phase2.ipynb` (Phase 2 EDA — read-only
+analysis, no artifacts required beyond Phase 1's), and
+`notebooks/MGMT590_LendingClub_Modeling_Phase3.ipynb` (Phase 3 modeling).
 
 Programmatic usage:
 
 ```python
-from src.train_models import run_phase1_pipeline
+from src.train_models import run_phase1_pipeline, run_phase3_pipeline
 
-artifacts = run_phase1_pipeline()
-artifacts.X_train, artifacts.y_train   # ready for Phase 3 model training
-artifacts.preprocessor                  # fitted ColumnTransformer
+phase1 = run_phase1_pipeline()
+phase1.X_train, phase1.y_train   # leakage-safe training split
+phase1.preprocessor               # fitted ColumnTransformer (Phase 1/2 use)
+
+phase3 = run_phase3_pipeline(phase1)
+phase3.results["xgboost"].best_estimator   # tuned Pipeline (preprocessor + classifier)
+phase3.comparison_table                     # executive model-comparison table
 ```
 
 ## Target variable
@@ -136,20 +272,35 @@ artifacts.preprocessor                  # fitted ColumnTransformer
 | Phase | Scope |
 |---|---|
 | 1 | Architecture, ingestion, validation, cleaning, preprocessing pipeline, leakage-safe split |
-| 2 (this commit) | Exploratory data analysis, descriptive statistics, default-rate analysis, research-question analysis, statistical testing, feature-relationship assessment |
-| 3 | Model training: Logistic Regression → Random Forest → XGBoost |
-| 4 | Model evaluation, comparison, and selection |
+| 2 | Exploratory data analysis, descriptive statistics, default-rate analysis, research-question analysis, statistical testing, feature-relationship assessment |
+| 3 | Supervised model training: Logistic Regression → Random Forest → XGBoost, hyperparameter tuning, evaluation, threshold optimization, feature importance |
+| 4A (this commit) | Explainable AI layer: `ExplainabilityEngine` (SHAP), `RiskScoringEngine`, configurable business thresholds, fairness assessment |
+| 4B | Borrower clustering |
 | 5 | Streamlit decision-support application |
 | 6 | Deployment, documentation, final report |
 
 ## Notes for future phases
 
-- Import shared logic from `src.config` and `src.utils` rather than
-  re-implementing it.
+- Import shared logic from `src.config`, `src.utils`, `src.model_utils`,
+  and (for anything explainability/risk-scoring related)
+  `src.explainability`, `src.risk_scoring`, `src.interpretation_utils`,
+  `src.configurable_thresholds` rather than re-implementing it.
 - The preprocessing pipeline in `pipelines/preprocessing_pipeline.joblib`
   is fit on `X_train` only — always `.transform()` (never re-`.fit()`) it
-  on validation/test/live data.
-- `src/train_models.py` already declares the Phase 3 function signatures
-  (`train_logistic_regression`, `train_random_forest`, `train_xgboost`,
-  `evaluate_model`) — implement their bodies in Phase 3 rather than
-  restructuring the module.
+  on validation/test/live data. Phase 3's tuned model pipelines
+  (`models/*.joblib`) each already bundle their own preprocessor
+  internally (see the design-decision note in
+  `model_utils.build_model_pipeline`) — no separate transform step is
+  needed to use them.
+- Phase 4B (clustering): can reuse `X_train`/`X_test` directly; consider
+  layering cluster labels onto `RiskScoringEngine.generate_batch_summary()`
+  output to report risk *by segment*.
+- Phase 5 (Streamlit): `RiskScoringEngine()` and `ExplainabilityEngine()`
+  are ready to import as-is — construct once per session (e.g. behind
+  `st.cache_resource`), then call their methods directly. Every plot
+  method returns a `matplotlib.figure.Figure` for `st.pyplot(...)`; every
+  summary is a plain dataclass/DataFrame/string; every exportable report
+  is an `interpretation_utils.ExportableReport` whose `.to_markdown()`/
+  `.to_json()` output is ready for `st.download_button(...)`. Business
+  thresholds are editable via `reports/risk_threshold_config.json`
+  without touching either engine's code.

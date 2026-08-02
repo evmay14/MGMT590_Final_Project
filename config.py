@@ -27,7 +27,6 @@ configuration and should have no side effects on import.
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import Dict, List
 
@@ -36,12 +35,8 @@ from typing import Dict, List
 # ---------------------------------------------------------------------------
 # PROJECT_ROOT resolves to the top-level project folder regardless of the
 # current working directory from which a script/notebook is launched, as
-# long as this file stays at <PROJECT_ROOT>/src/config.py. This can be
-# overridden via the MGMT590_PROJECT_ROOT environment variable -- useful
-# in containerized deployments where data/model artifacts are mounted at
-# a different path than the source code itself (e.g. a read-only image
-# with a separate writable volume for data/models/reports/logs).
-PROJECT_ROOT: Path = Path(os.environ.get("MGMT590_PROJECT_ROOT", str(Path(__file__).resolve().parents[1])))
+# long as this file stays at <PROJECT_ROOT>/src/config.py.
+PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 
 DATA_DIR: Path = PROJECT_ROOT / "data"
 RAW_DATA_DIR: Path = DATA_DIR / "raw"
@@ -67,13 +62,6 @@ REPORTS_DIR: Path = PROJECT_ROOT / "reports"
 # artifacts rather than a new pipeline stage -- they describe/explain
 # the already-trained models rather than producing new ones.
 EXPLAINABILITY_DIR: Path = REPORTS_DIR / "explainability"
-# New in Phase 4B: borrower-segmentation artifacts (clustering model,
-# centroids, dimensionality-reduction objects, segment profiles). Same
-# rationale as EXPLAINABILITY_DIR -- a subdirectory of REPORTS_DIR, not
-# a new top-level directory, since segmentation is a second downstream
-# ANALYSIS of the same fitted production pipeline's feature space,
-# parallel to (not a replacement for) supervised prediction.
-SEGMENTATION_DIR: Path = REPORTS_DIR / "segmentation"
 
 # Directories that must exist before any pipeline step runs. Created lazily
 # (idempotently) by `ensure_directories()` in utils.py rather than at
@@ -86,7 +74,6 @@ REQUIRED_DIRS: List[Path] = [
     PIPELINES_DIR,
     REPORTS_DIR,
     EXPLAINABILITY_DIR,
-    SEGMENTATION_DIR,
     LOGS_DIR,
     NOTEBOOKS_DIR,
     APP_DIR,
@@ -135,12 +122,6 @@ FEATURE_IMPORTANCE_PATH: Path = REPORTS_DIR / "feature_importance.joblib"
 PROBABILITY_PREDICTIONS_PATH: Path = REPORTS_DIR / "probability_predictions.joblib"
 THRESHOLD_ANALYSIS_PATH: Path = REPORTS_DIR / "threshold_analysis.joblib"
 MODEL_COMPARISON_TABLE_PATH: Path = REPORTS_DIR / "model_comparison_table.csv"
-
-# Serialized clustering model (populated in Phase 4B). A single fitted
-# clustering estimator, kept alongside the Phase 3 supervised models in
-# MODELS_DIR since it is likewise "a fitted model artifact", distinct
-# from the descriptive/summary artifacts under SEGMENTATION_DIR.
-CLUSTERING_MODEL_PATH: Path = MODELS_DIR / "clustering_model.joblib"
 
 # Log file for the full pipeline run.
 PIPELINE_LOG_PATH: Path = LOGS_DIR / "pipeline.log"
@@ -291,10 +272,7 @@ STRATIFY_COLUMN: str = TARGET_COLUMN
 # ---------------------------------------------------------------------------
 # 7. LOGGING
 # ---------------------------------------------------------------------------
-# Overridable via the MGMT590_LOG_LEVEL environment variable (e.g. set to
-# "WARNING" in a production deployment to reduce log volume without a
-# code change). Falls back silently to INFO for any unrecognized value.
-LOG_LEVEL: int = getattr(logging, os.environ.get("MGMT590_LOG_LEVEL", "INFO").upper(), logging.INFO)
+LOG_LEVEL: int = logging.INFO
 LOG_FORMAT: str = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 LOG_DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S"
 
@@ -428,66 +406,3 @@ FEATURE_INTERACTION_SUMMARY_PATH: Path = EXPLAINABILITY_DIR / "feature_interacti
 # credit-policy stakeholder can open and change them in a text editor
 # without touching Python -- see configurable_thresholds.py.
 RISK_THRESHOLD_CONFIG_PATH: Path = REPORTS_DIR / "risk_threshold_config.json"
-
-# ---------------------------------------------------------------------------
-# 10. PHASE 4B -- BORROWER SEGMENTATION CONFIGURATION
-# ---------------------------------------------------------------------------
-
-# Features used to compute inter-borrower DISTANCE for clustering.
-# Deliberately NUMERIC + ORDINAL only (excludes the one-hot categorical
-# columns in ONEHOT_CATEGORICAL_FEATURES). Rationale, expanded on in the
-# Phase 4B notebook's Data Preparation section: one-hot dummy columns are
-# binary (0/1) and, under Euclidean distance, several correlated dummies
-# from the same categorical variable can collectively dominate the
-# distance calculation over genuinely continuous financial signals like
-# income or DTI -- producing clusters that mostly reproduce a categorical
-# variable's own categories rather than revealing new financial-behavior
-# groupings. Categorical columns (home_ownership, purpose, verification
-# status, etc.) are still fully used, just downstream in PROFILING
-# (segment_profiles.py) to describe what a cluster looks like, rather
-# than upstream in defining cluster membership itself.
-CLUSTERING_NUMERIC_FEATURES: List[str] = list(NUMERIC_FEATURES)
-CLUSTERING_ORDINAL_FEATURES: List[str] = list(ORDINAL_CATEGORICAL_FEATURES)  # i.e. ["grade"]
-
-# Raw categorical columns retained for cluster PROFILING/business-label
-# assignment (mode / distribution per cluster) even though they don't
-# drive clustering distance directly.
-CLUSTERING_PROFILE_CATEGORICAL_FEATURES: List[str] = list(ONEHOT_CATEGORICAL_FEATURES)
-
-# IQR-based outlier clipping applied before scaling. K-Means (and, to a
-# lesser extent, hierarchical/Euclidean-based methods) is sensitive to
-# extreme values since a single outlier can pull a centroid noticeably;
-# clipping (winsorizing) rather than dropping preserves every borrower's
-# ranking/segment membership while preventing a handful of extreme rows
-# from distorting cluster boundaries for everyone else.
-OUTLIER_IQR_MULTIPLIER: float = 3.0
-
-# Candidate cluster counts evaluated by the optimal-k analysis (elbow,
-# silhouette, Calinski-Harabasz, Davies-Bouldin). Capped at 8: beyond
-# that, borrower segments become too numerous for the business
-# applications this phase targets (marketing campaigns, underwriting
-# policy tiers) to act on distinctly.
-N_CLUSTERS_CANDIDATES: List[int] = [2, 3, 4, 5, 6, 7, 8]
-
-# Default clustering algorithm and cluster count used by
-# `SegmentationEngine` unless overridden -- see the Phase 4B notebook's
-# "Optimal Number of Clusters" and "Clustering Algorithms" sections for
-# the comparative analysis that justifies these defaults.
-DEFAULT_CLUSTERING_ALGORITHM: str = "kmeans"
-DEFAULT_N_CLUSTERS: int = 4
-
-# Sample size for t-SNE/UMAP visualization. Both are O(n log n) to O(n^2)
-# depending on implementation and become slow/memory-heavy well before
-# this project's full dataset size; a random sample is representative
-# enough for a 2D visual sanity-check without a multi-minute wait in an
-# interactive notebook or Streamlit session.
-DIMENSIONALITY_REDUCTION_SAMPLE_SIZE: int = 1000
-
-# --- Phase 4B artifact paths (all under SEGMENTATION_DIR) ---
-PCA_MODEL_PATH: Path = SEGMENTATION_DIR / "pca_model.joblib"
-CLUSTER_CENTROIDS_PATH: Path = SEGMENTATION_DIR / "cluster_centroids.joblib"
-SEGMENT_DEFINITIONS_PATH: Path = SEGMENTATION_DIR / "segment_definitions.joblib"
-CLUSTER_METADATA_PATH: Path = SEGMENTATION_DIR / "cluster_metadata.joblib"
-SEGMENT_PROFILES_PATH: Path = SEGMENTATION_DIR / "segment_profiles.joblib"
-OPTIMAL_K_ANALYSIS_PATH: Path = SEGMENTATION_DIR / "optimal_k_analysis.joblib"
-CLUSTERING_PREPROCESSOR_PATH: Path = SEGMENTATION_DIR / "clustering_preprocessor.joblib"
