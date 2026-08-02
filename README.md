@@ -5,9 +5,12 @@ DY2, Purdue University). Predicts loan default risk for Indiana
 LendingClub borrowers and supports lending decisions through a Streamlit
 decision-support application.
 
-This repository is built incrementally across six phases. **Phases 1-3
-(data pipeline, exploratory analysis, and supervised modeling) and
-Phase 4A (explainability + risk scoring) are complete.**
+This repository is built incrementally across seven phases (the roadmap
+was revised from six to seven phases starting Phase 4B, splitting what
+was "Phase 4" into 4A/4B and adding a dedicated Phase 7 for final review/
+documentation). **Phases 1-3 (data pipeline, exploratory analysis, and
+supervised modeling), Phase 4A (explainability + risk scoring), and
+Phase 4B (borrower segmentation) are complete.**
 
 ## Phase 1 deliverables
 
@@ -156,6 +159,70 @@ is a plain dataclass/DataFrame/string, ready for direct use in a future
 `st.pyplot(...)` / `st.dataframe(...)` / `st.download_button(...)` call
 without modification.
 
+## Phase 4B deliverables (this commit)
+
+**Files Modified:**
+- `src/config.py` — appended a Phase 4B section only (new
+  `SEGMENTATION_DIR`, `CLUSTERING_MODEL_PATH`, clustering feature lists,
+  outlier/optimal-k/algorithm defaults, segmentation artifact paths).
+  Phases 1-4A sections untouched.
+- `requirements.txt` — added `umap-learn`.
+
+**Files Created:**
+- `src/cluster_analysis.py` — data preparation (IQR outlier clipping,
+  a clustering-specific preprocessor scoped to numeric + ordinal
+  features only), dimensionality reduction (PCA/t-SNE/UMAP), four
+  clustering algorithms (K-Means, Agglomerative, Gaussian Mixture,
+  DBSCAN — each with a full advantages/disadvantages/business-
+  applicability/computational-considerations docstring), and optimal-k
+  evaluation (elbow, silhouette, Calinski-Harabasz, Davies-Bouldin,
+  combined into a transparent rank-based recommendation).
+- `src/cluster_visualization.py` — dimensionality-reduction scatter
+  plots (single + side-by-side method comparison), the four-panel
+  optimal-k chart, cluster heatmap, parallel-coordinates plot, radar
+  chart, cluster size distribution, and generic feature-by-cluster
+  bar/boxplot builders (used for the required income/interest-rate/
+  DTI/default-rate-by-cluster charts).
+- `src/segment_profiles.py` — comprehensive per-cluster profiling,
+  DATA-DRIVEN business naming (`assign_segment_names` — priority logic
+  based on relative income/DTI/rate/default-rate z-scores, not fixed
+  assumptions), business-action recommendations keyed on measured risk
+  tier, segment comparison tables, and exportable segment reports.
+- `src/segmentation_engine.py` — `SegmentationEngine`: every method
+  from the Phase 4B brief (`fit`, `predict_cluster`, `assign_segment`,
+  `describe_segment`, `generate_cluster_profile`, `visualize_clusters`,
+  `compare_segments`, `recommend_business_actions`,
+  `export_segment_summary`), plus `compare_with_supervised_models()`
+  cross-referencing cluster membership against the Phase 3/4A
+  production model's predicted probabilities, and
+  `persist_segmentation_artifacts()`.
+- `notebooks/MGMT590_LendingClub_Segmentation_Phase4B.ipynb` — 55
+  executed cells, 14 real visualizations: data preparation rationale,
+  dimensionality-reduction comparison, optimal-k analysis, algorithm
+  comparison, full engine fit, all required visualizations, cluster
+  profiles, business naming, business recommendations, segment
+  comparison, relationship-to-ML cross-check, research-question
+  support, exportable reports, and a Phase 5 hand-off.
+- `tests/test_cluster_analysis.py`, `tests/test_cluster_visualization.py`,
+  `tests/test_segment_profiles.py`, `tests/test_segmentation_engine.py`
+  — 65 new unit tests (204 total across the project, all passing).
+- `tests/build_notebook_phase4b.py` — regenerates the Phase 4B notebook.
+
+**Files Unchanged:** `src/utils.py`, `src/eda_utils.py`,
+`src/model_utils.py`, `src/train_models.py`, `src/explainability.py`,
+`src/risk_scoring.py`, `src/interpretation_utils.py`,
+`src/configurable_thresholds.py`, all Phase 1-4A notebooks and tests,
+`.gitignore`.
+
+**Not implemented (explicitly deferred):** the Streamlit dashboard
+(Phase 5), integration testing/performance optimization/deployment
+(Phase 6), and final documentation/presentation assets (Phase 7).
+`SegmentationEngine` is a stable, Streamlit-ready interface — every
+plotting method returns a `matplotlib.figure.Figure`, every summary is a
+plain dataclass/DataFrame/string, and `export_segment_summary()` returns
+an `interpretation_utils.ExportableReport` ready for
+`st.download_button(...)`, without modification.
+
 ## Project structure
 
 ```
@@ -165,7 +232,7 @@ mgmt590_capstone/
 ├── .gitignore
 ├── src/
 │   ├── __init__.py
-│   ├── config.py                  # paths, constants, column groups, CV/search/explainability settings
+│   ├── config.py                  # paths, constants, column groups, CV/search/explainability/segmentation settings
 │   ├── utils.py                    # ingestion / validation / cleaning / pipeline / split / serialization
 │   ├── eda_utils.py                # Phase 2: descriptive stats, plotting, statistical tests
 │   ├── model_utils.py              # Phase 3: ML pipelines, hyperparameter search, metrics, importance
@@ -173,20 +240,26 @@ mgmt590_capstone/
 │   ├── configurable_thresholds.py # Phase 4A: risk-tier/action/rate/grade business-policy config
 │   ├── interpretation_utils.py    # Phase 4A: feature humanization, business text, fairness, exports
 │   ├── risk_scoring.py            # Phase 4A: RiskScoringEngine
-│   └── explainability.py          # Phase 4A: ExplainabilityEngine (SHAP)
+│   ├── explainability.py          # Phase 4A: ExplainabilityEngine (SHAP)
+│   ├── cluster_analysis.py        # Phase 4B: data prep, dimensionality reduction, clustering algorithms, optimal-k
+│   ├── cluster_visualization.py   # Phase 4B: cluster scatter/heatmap/parallel-coords/radar/bar plotting
+│   ├── segment_profiles.py        # Phase 4B: profiling, data-driven naming, recommendations, exports
+│   └── segmentation_engine.py     # Phase 4B: SegmentationEngine
 ├── notebooks/
-│   ├── MGMT590_LendingClub_Analysis.ipynb              # Phase 1
-│   ├── MGMT590_LendingClub_EDA_Phase2.ipynb            # Phase 2
-│   ├── MGMT590_LendingClub_Modeling_Phase3.ipynb       # Phase 3
-│   └── MGMT590_LendingClub_Explainability_Phase4A.ipynb # Phase 4A
+│   ├── MGMT590_LendingClub_Analysis.ipynb                # Phase 1
+│   ├── MGMT590_LendingClub_EDA_Phase2.ipynb              # Phase 2
+│   ├── MGMT590_LendingClub_Modeling_Phase3.ipynb         # Phase 3
+│   ├── MGMT590_LendingClub_Explainability_Phase4A.ipynb  # Phase 4A
+│   └── MGMT590_LendingClub_Segmentation_Phase4B.ipynb    # Phase 4B
 ├── data/
 │   ├── raw/                 # place the real LendingClub Indiana extract here
 │   ├── processed/           # cleaned dataset (generated)
 │   └── splits/              # X/y train/val/test CSVs (generated)
-├── models/                  # serialized trained models (logistic_regression/random_forest/xgboost .joblib)
+├── models/                  # serialized trained models (logistic_regression/random_forest/xgboost/clustering_model .joblib)
 ├── pipelines/               # serialized fitted preprocessing pipeline (Phase 1/2 use)
 ├── reports/                 # Phase 3 evaluation artifacts + Phase 4A risk_threshold_config.json
-│   └── explainability/      # Phase 4A: SHAP importance, business summaries, metadata, fairness report
+│   ├── explainability/      # Phase 4A: SHAP importance, business summaries, metadata, fairness report
+│   └── segmentation/        # Phase 4B: cluster centroids, segment definitions, metadata, profiles, optimal-k table
 ├── logs/                    # pipeline run logs
 ├── app/                     # Streamlit application (Phase 5)
 └── tests/
@@ -195,13 +268,18 @@ mgmt590_capstone/
     ├── build_notebook_phase2.py           # regenerates the Phase 2 notebook
     ├── build_notebook_phase3.py           # regenerates the Phase 3 notebook
     ├── build_notebook_phase4a.py          # regenerates the Phase 4A notebook
+    ├── build_notebook_phase4b.py          # regenerates the Phase 4B notebook
     ├── test_utils.py
     ├── test_eda_utils.py
     ├── test_model_utils.py
     ├── test_configurable_thresholds.py
     ├── test_interpretation_utils.py
     ├── test_risk_scoring.py
-    └── test_explainability.py
+    ├── test_explainability.py
+    ├── test_cluster_analysis.py
+    ├── test_cluster_visualization.py
+    ├── test_segment_profiles.py
+    └── test_segmentation_engine.py
 ```
 
 ## Setup
@@ -274,33 +352,39 @@ phase3.comparison_table                     # executive model-comparison table
 | 1 | Architecture, ingestion, validation, cleaning, preprocessing pipeline, leakage-safe split |
 | 2 | Exploratory data analysis, descriptive statistics, default-rate analysis, research-question analysis, statistical testing, feature-relationship assessment |
 | 3 | Supervised model training: Logistic Regression → Random Forest → XGBoost, hyperparameter tuning, evaluation, threshold optimization, feature importance |
-| 4A (this commit) | Explainable AI layer: `ExplainabilityEngine` (SHAP), `RiskScoringEngine`, configurable business thresholds, fairness assessment |
-| 4B | Borrower clustering |
-| 5 | Streamlit decision-support application |
-| 6 | Deployment, documentation, final report |
+| 4A | Explainable AI layer: `ExplainabilityEngine` (SHAP), `RiskScoringEngine`, configurable business thresholds, fairness assessment |
+| 4B (this commit) | Borrower segmentation: `SegmentationEngine`, clustering algorithm/optimal-k comparison, data-driven segment naming, business recommendations |
+| 5 | Streamlit dashboard & user experience |
+| 6 | Integration testing, performance optimization & deployment |
+| 7 | Final code review, documentation & presentation assets |
 
 ## Notes for future phases
 
 - Import shared logic from `src.config`, `src.utils`, `src.model_utils`,
-  and (for anything explainability/risk-scoring related)
+  and (for anything explainability/risk-scoring/segmentation related)
   `src.explainability`, `src.risk_scoring`, `src.interpretation_utils`,
-  `src.configurable_thresholds` rather than re-implementing it.
+  `src.configurable_thresholds`, `src.segmentation_engine`,
+  `src.cluster_analysis`, `src.cluster_visualization`,
+  `src.segment_profiles` rather than re-implementing it.
 - The preprocessing pipeline in `pipelines/preprocessing_pipeline.joblib`
   is fit on `X_train` only — always `.transform()` (never re-`.fit()`) it
   on validation/test/live data. Phase 3's tuned model pipelines
   (`models/*.joblib`) each already bundle their own preprocessor
   internally (see the design-decision note in
   `model_utils.build_model_pipeline`) — no separate transform step is
-  needed to use them.
-- Phase 4B (clustering): can reuse `X_train`/`X_test` directly; consider
-  layering cluster labels onto `RiskScoringEngine.generate_batch_summary()`
-  output to report risk *by segment*.
-- Phase 5 (Streamlit): `RiskScoringEngine()` and `ExplainabilityEngine()`
-  are ready to import as-is — construct once per session (e.g. behind
-  `st.cache_resource`), then call their methods directly. Every plot
-  method returns a `matplotlib.figure.Figure` for `st.pyplot(...)`; every
-  summary is a plain dataclass/DataFrame/string; every exportable report
-  is an `interpretation_utils.ExportableReport` whose `.to_markdown()`/
-  `.to_json()` output is ready for `st.download_button(...)`. Business
-  thresholds are editable via `reports/risk_threshold_config.json`
-  without touching either engine's code.
+  needed to use them. `SegmentationEngine` similarly owns its own
+  clustering-specific preprocessor internally (`config.CLUSTERING_PREPROCESSOR_PATH`)
+  — a deliberately NARROWER feature space (numeric + ordinal `grade`
+  only) than the supervised models use; see `config.py`'s Phase 4B
+  section for why.
+- Phase 5 (Streamlit): `RiskScoringEngine()`, `ExplainabilityEngine()`,
+  and `SegmentationEngine()` are ready to import as-is — construct once
+  per session (e.g. behind `st.cache_resource`; `SegmentationEngine`
+  additionally needs `.fit(X_train, y_train)` called once at startup,
+  same as it is in the Phase 4B notebook), then call their methods
+  directly. Every plot method returns a `matplotlib.figure.Figure` for
+  `st.pyplot(...)`; every summary is a plain dataclass/DataFrame/string;
+  every exportable report is an `interpretation_utils.ExportableReport`
+  whose `.to_markdown()`/`.to_json()` output is ready for
+  `st.download_button(...)`. Business thresholds are editable via
+  `reports/risk_threshold_config.json` without touching any engine's code.
