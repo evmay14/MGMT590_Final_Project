@@ -9,8 +9,9 @@ This repository is built incrementally across seven phases (the roadmap
 was revised from six to seven phases starting Phase 4B, splitting what
 was "Phase 4" into 4A/4B and adding a dedicated Phase 7 for final review/
 documentation). **Phases 1-3 (data pipeline, exploratory analysis, and
-supervised modeling), Phase 4A (explainability + risk scoring), and
-Phase 4B (borrower segmentation) are complete.**
+supervised modeling), Phase 4A (explainability + risk scoring), Phase 4B
+(borrower segmentation), and Phase 5 (the Streamlit dashboard) are
+complete.**
 
 ## Phase 1 deliverables
 
@@ -223,6 +224,68 @@ plain dataclass/DataFrame/string, and `export_segment_summary()` returns
 an `interpretation_utils.ExportableReport` ready for
 `st.download_button(...)`, without modification.
 
+## Phase 5 deliverables (this commit)
+
+**Files Modified:**
+- `requirements.txt` — updated the `streamlit` dependency's comment to
+  reflect it now backs an actual deployed dashboard rather than a
+  placeholder; no version-range changes.
+
+**Files Created:**
+- `app/app.py` — entry point. Wires up `st.navigation`/`st.Page`
+  multipage routing (grouped into Overview / Analysis / Decision Tools /
+  Project Info) and renders the shared sidebar. Contains no ML logic.
+- `app/common.py` — every shared UI utility: cached loaders for the
+  cleaned dataset, Phase 1 splits, Phase 3 reports, and the
+  `RiskScoringEngine`/`ExplainabilityEngine`/`SegmentationEngine`
+  instances (`st.cache_resource`/`st.cache_data`, so models are loaded
+  and the segmentation model is fit exactly once per session); sidebar
+  controls (model selector, borrower filters, display-density toggle,
+  download options, about blurb); KPI/page-header/executive-summary-box
+  styling; CSV/Markdown/JSON/PNG download helpers. This module is the
+  ONLY place caching and engine-loading logic lives — every page imports
+  from it rather than re-implementing any of it.
+- `app/app_pages/` — all eight required pages, each purely an
+  orchestration layer over the Phase 3/4A/4B engines:
+  - `executive_dashboard.py` — portfolio KPIs, grade distribution,
+    default rate by grade, top risk factors (from `ExplainabilityEngine`),
+    executive takeaways.
+  - `exploratory_analysis.py` — interactive EDA re-rendering
+    `eda_utils.py`'s plotting functions against the sidebar-filtered
+    dataset.
+  - `model_comparison.py` — Phase 3's comparison table, ROC/PR curves,
+    confusion matrices, calibration curves, and on-demand learning
+    curves for all three models side-by-side.
+  - `borrower_risk_prediction.py` — the interactive prediction form;
+    calls `RiskScoringEngine.generate_prediction_summary()` and
+    `ExplainabilityEngine.explain_prediction()`/`generate_waterfall_plot()`/
+    `generate_force_plot()` and displays their output (probability gauge,
+    risk meter, top risk/protective factors, executive summary,
+    exportable reports) — no scoring or SHAP logic implemented here.
+  - `borrower_segmentation.py` — segment overview, per-segment detail
+    and recommendations, PCA/t-SNE/radar/heatmap visualizations, and the
+    supervised-model cross-check, entirely via `SegmentationEngine`.
+  - `business_insights.py` — all seven research questions in
+    question/finding/evidence/visualization/recommendation/decision-impact
+    format.
+  - `model_explainability.py` — global SHAP summary/dependence/decision/
+    waterfall plots and business interpretation via `ExplainabilityEngine`.
+  - `about_project.py` — business problem, research questions, PDID
+    framework, methodology, technology stack, workflow, limitations,
+    future improvements.
+- `.streamlit/config.toml` — professional navy/slate theme.
+- `tests/test_app.py` — 18 tests using Streamlit's `AppTest` headless
+  testing API: every page loads without exception, sidebar controls
+  work, the full prediction form submits end-to-end, Business Insights
+  covers all seven research questions.
+
+**Files Unchanged:** every `src/*.py` module from Phases 1-4B, all
+notebooks and their tests, `.gitignore`.
+
+**Not implemented (explicitly deferred):** integration testing,
+performance optimization, and deployment configuration (Phase 6), and
+final documentation/presentation assets (Phase 7).
+
 ## Project structure
 
 ```
@@ -261,7 +324,20 @@ mgmt590_capstone/
 │   ├── explainability/      # Phase 4A: SHAP importance, business summaries, metadata, fairness report
 │   └── segmentation/        # Phase 4B: cluster centroids, segment definitions, metadata, profiles, optimal-k table
 ├── logs/                    # pipeline run logs
-├── app/                     # Streamlit application (Phase 5)
+├── .streamlit/
+│   └── config.toml          # Phase 5: dashboard theme (navy/slate palette)
+├── app/                     # Phase 5: Streamlit dashboard
+│   ├── app.py                # entry point — navigation + shared sidebar (no ML logic)
+│   ├── common.py             # cached engine/data loaders, sidebar controls, styling, download helpers
+│   └── app_pages/
+│       ├── executive_dashboard.py       # Page 1: portfolio KPIs
+│       ├── exploratory_analysis.py      # Page 2: interactive EDA
+│       ├── model_comparison.py          # Page 3: ROC/PR/confusion/calibration/learning curves
+│       ├── borrower_risk_prediction.py  # Page 4: live single-borrower scoring + SHAP
+│       ├── borrower_segmentation.py     # Page 5: segment lookup + visualizations
+│       ├── business_insights.py         # Page 6: research questions as an executive report
+│       ├── model_explainability.py      # Page 7: global SHAP explanations
+│       └── about_project.py             # Page 8: methodology & documentation
 └── tests/
     ├── generate_synthetic_fixture.py     # synthetic data for local pipeline testing only
     ├── build_notebook.py                  # regenerates the Phase 1 notebook
@@ -279,7 +355,8 @@ mgmt590_capstone/
     ├── test_cluster_analysis.py
     ├── test_cluster_visualization.py
     ├── test_segment_profiles.py
-    └── test_segmentation_engine.py
+    ├── test_segmentation_engine.py
+    └── test_app.py            # Phase 5: Streamlit AppTest-based headless UI tests
 ```
 
 ## Setup
@@ -336,6 +413,49 @@ phase3.results["xgboost"].best_estimator   # tuned Pipeline (preprocessor + clas
 phase3.comparison_table                     # executive model-comparison table
 ```
 
+## Running the Dashboard (Phase 5)
+
+The dashboard reads already-serialized artifacts — run the pipeline
+above (plus persist the Phase 4A/4B artifacts, shown below) at least
+once first:
+
+```bash
+python -m src.train_models
+
+python -c "
+from src.explainability import ExplainabilityEngine
+ExplainabilityEngine().persist_explainability_artifacts()
+"
+
+python -c "
+from src import utils
+from src.segmentation_engine import SegmentationEngine
+X_train, _, _, y_train, _, _ = utils.load_splits()
+engine = SegmentationEngine()
+engine.fit(X_train, default_flags=y_train)
+engine.persist_segmentation_artifacts()
+"
+```
+
+Then, from the project root:
+
+```bash
+streamlit run app/app.py
+```
+
+The first load fits the segmentation model and computes a SHAP
+background sample (a few seconds); every model and preprocessing
+pipeline is loaded from disk, never retrained. Pages that need an
+artifact that hasn't been generated yet show a friendly notice with the
+exact command to run, instead of crashing.
+
+Test the dashboard headlessly (no browser required) via Streamlit's
+`AppTest` API:
+
+```bash
+pytest tests/test_app.py -v
+```
+
 ## Target variable
 
 `default_flag` (binary):
@@ -353,8 +473,8 @@ phase3.comparison_table                     # executive model-comparison table
 | 2 | Exploratory data analysis, descriptive statistics, default-rate analysis, research-question analysis, statistical testing, feature-relationship assessment |
 | 3 | Supervised model training: Logistic Regression → Random Forest → XGBoost, hyperparameter tuning, evaluation, threshold optimization, feature importance |
 | 4A | Explainable AI layer: `ExplainabilityEngine` (SHAP), `RiskScoringEngine`, configurable business thresholds, fairness assessment |
-| 4B (this commit) | Borrower segmentation: `SegmentationEngine`, clustering algorithm/optimal-k comparison, data-driven segment naming, business recommendations |
-| 5 | Streamlit dashboard & user experience |
+| 4B | Borrower segmentation: `SegmentationEngine`, clustering algorithm/optimal-k comparison, data-driven segment naming, business recommendations |
+| 5 (this commit) | Streamlit dashboard: 8-page multipage app orchestrating all four engines, professional theme, caching, exportable reports |
 | 6 | Integration testing, performance optimization & deployment |
 | 7 | Final code review, documentation & presentation assets |
 
@@ -377,14 +497,22 @@ phase3.comparison_table                     # executive model-comparison table
   — a deliberately NARROWER feature space (numeric + ordinal `grade`
   only) than the supervised models use; see `config.py`'s Phase 4B
   section for why.
-- Phase 5 (Streamlit): `RiskScoringEngine()`, `ExplainabilityEngine()`,
-  and `SegmentationEngine()` are ready to import as-is — construct once
-  per session (e.g. behind `st.cache_resource`; `SegmentationEngine`
-  additionally needs `.fit(X_train, y_train)` called once at startup,
-  same as it is in the Phase 4B notebook), then call their methods
-  directly. Every plot method returns a `matplotlib.figure.Figure` for
-  `st.pyplot(...)`; every summary is a plain dataclass/DataFrame/string;
-  every exportable report is an `interpretation_utils.ExportableReport`
-  whose `.to_markdown()`/`.to_json()` output is ready for
-  `st.download_button(...)`. Business thresholds are editable via
-  `reports/risk_threshold_config.json` without touching any engine's code.
+- Phase 5 (Streamlit) is now built exactly this way — see `app/common.py`
+  for the actual `st.cache_resource`-wrapped constructors. Every plot
+  method returns a `matplotlib.figure.Figure` for `st.pyplot(...)`; every
+  summary is a plain dataclass/DataFrame/string; every exportable report
+  is an `interpretation_utils.ExportableReport` whose `.to_markdown()`/
+  `.to_json()` output is wired to `st.download_button(...)`. Business
+  thresholds are editable via `reports/risk_threshold_config.json`
+  without touching any engine's or page's code.
+- Phase 6 (integration testing / performance / deployment): `tests/test_app.py`
+  already exercises every page headlessly via `AppTest` — extend it
+  rather than writing a parallel test harness. For deployment, the app
+  expects `streamlit run app/app.py` from the project root (so relative
+  paths in `.streamlit/config.toml` resolve); `app/common.py`'s
+  `st.cache_resource` calls mean cold-start cost (model loading, SHAP
+  background sampling, segmentation fit) is paid once per server
+  process, not per user session.
+- Phase 7 (final documentation/presentation): `app/app_pages/about_project.py`
+  already contains the methodology/PDID/limitations narrative in a
+  form suitable for reuse in a written report or slide deck.
