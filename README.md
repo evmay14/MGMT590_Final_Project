@@ -10,8 +10,9 @@ was revised from six to seven phases starting Phase 4B, splitting what
 was "Phase 4" into 4A/4B and adding a dedicated Phase 7 for final review/
 documentation). **Phases 1-3 (data pipeline, exploratory analysis, and
 supervised modeling), Phase 4A (explainability + risk scoring), Phase 4B
-(borrower segmentation), and Phase 5 (the Streamlit dashboard) are
-complete.**
+(borrower segmentation), Phase 5 (the Streamlit dashboard), and Phase 6
+(integration/edge-case testing, performance optimization, and deployment
+preparation) are complete.**
 
 ## Phase 1 deliverables
 
@@ -286,12 +287,82 @@ notebooks and their tests, `.gitignore`.
 performance optimization, and deployment configuration (Phase 6), and
 final documentation/presentation assets (Phase 7).
 
+## Phase 6 deliverables (this commit)
+
+**Files Modified:**
+- `src/risk_scoring.py` — fixed a genuine edge-case bug found during
+  Phase 6 testing (`predict_probability` crashed with a low-level
+  sklearn error on a zero-row DataFrame instead of returning an empty
+  array); promoted a local `matplotlib.pyplot` import to module level,
+  fixing a `pyflakes`-flagged undefined-name-in-annotation issue.
+- `src/config.py` — added `MGMT590_PROJECT_ROOT` and `MGMT590_LOG_LEVEL`
+  environment-variable overrides (Phase 6 configuration-management
+  requirement); no existing paths or defaults changed.
+- `src/model_utils.py`, `src/eda_utils.py`, `src/explainability.py`,
+  `src/segmentation_engine.py`, `src/interpretation_utils.py`,
+  `src/train_models.py`, `src/segment_profiles.py` — removed unused
+  imports/dead code found by a full-codebase `pyflakes` audit; no
+  behavior changes.
+- `app/common.py` — added three `st.cache_data`-wrapped functions
+  (`get_cluster_visualization`, `get_learning_curve_figure`,
+  `get_global_explanation`) for expensive computations that were
+  previously recomputed on every page rerun.
+- `app/app_pages/borrower_risk_prediction.py`,
+  `app/app_pages/borrower_segmentation.py` — wrapped engine calls in
+  try/except with logged tracebacks and friendly `st.error` messages;
+  wired in the new cached wrappers.
+- `app/app_pages/executive_dashboard.py`, `app/app_pages/model_comparison.py`,
+  `app/app_pages/model_explainability.py` — wired in the new cached
+  wrappers; removed unused imports.
+- `app/app.py` — added session-scoped startup logging.
+- `requirements.txt` — removed three confirmed-unused dependencies
+  (`imbalanced-learn`, `plotly`, `python-dateutil`), found by grepping
+  the entire codebase for their imports and finding none.
+
+**Files Created:**
+- `tests/test_integration.py` — 18 tests verifying every cross-component
+  seam (preprocessing pipeline, all serialized models, the clustering
+  model, all three engines, configuration files, logging) works
+  end-to-end against real artifacts on disk, not mocks.
+- `tests/test_edge_cases.py` — 25 tests covering missing values, empty
+  datasets, invalid loan grades, negative income, extreme loan
+  amounts/DTI, unexpected categories, corrupted/missing serialized
+  files, and malformed user input. This suite caught the
+  `predict_probability` empty-DataFrame bug fixed above.
+- `requirements-app.txt` — a lean, deployment-only dependency set
+  (excludes Jupyter/notebook/pytest) for a smaller/faster deployment
+  install.
+- `runtime.txt` — pins the Python version for deployment platforms that
+  read it (Render, Heroku-style buildpacks).
+- `PERFORMANCE_REPORT.md` — measured startup time, prediction/SHAP/
+  clustering latency, memory usage, ranked bottlenecks, optimizations
+  made, and recommendations for future scaling.
+- `QA_CHECKLIST.md` — a comprehensive, test-file-referenced QA checklist
+  covering data loading through documentation references.
+- `DEPLOYMENT.md` — environment setup, launch instructions, a folder/
+  dependency verification checklist, and platform-specific guidance for
+  Streamlit Community Cloud, Render, Railway, and Hugging Face Spaces
+  (no actual deployment performed).
+
+**Files Unchanged:** every other `src/*.py` module's public interface
+and behavior, all notebooks and their tests, every other `app/app_pages/*.py`
+page's structure, `.streamlit/config.toml`, `.gitignore`.
+
+**Not implemented (explicitly deferred):** final documentation and
+presentation assets (Phase 7). No new analytics or ML models were added
+in this phase, per the Phase 6 brief.
+
 ## Project structure
 
 ```
 mgmt590_capstone/
 ├── README.md
 ├── requirements.txt
+├── requirements-app.txt      # Phase 6: lean deployment-only dependency set
+├── runtime.txt                # Phase 6: pinned Python version for deployment platforms
+├── PERFORMANCE_REPORT.md      # Phase 6: measured startup/latency/memory + bottlenecks
+├── QA_CHECKLIST.md            # Phase 6: comprehensive, test-referenced QA checklist
+├── DEPLOYMENT.md              # Phase 6: environment setup + platform deployment guidance
 ├── .gitignore
 ├── src/
 │   ├── __init__.py
@@ -356,7 +427,9 @@ mgmt590_capstone/
     ├── test_cluster_visualization.py
     ├── test_segment_profiles.py
     ├── test_segmentation_engine.py
-    └── test_app.py            # Phase 5: Streamlit AppTest-based headless UI tests
+    ├── test_app.py             # Phase 5: Streamlit AppTest-based headless UI tests
+    ├── test_integration.py     # Phase 6: cross-component integration tests
+    └── test_edge_cases.py      # Phase 6: missing/invalid/corrupted-input edge cases
 ```
 
 ## Setup
@@ -366,6 +439,9 @@ python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+For a deployment-only environment (no Jupyter/pytest), use
+`requirements-app.txt` instead — see `DEPLOYMENT.md` for full guidance.
 
 ## Data
 
@@ -450,10 +526,13 @@ artifact that hasn't been generated yet show a friendly notice with the
 exact command to run, instead of crashing.
 
 Test the dashboard headlessly (no browser required) via Streamlit's
-`AppTest` API:
+`AppTest` API, alongside the Phase 6 integration and edge-case suites:
 
 ```bash
-pytest tests/test_app.py -v
+pytest tests/test_app.py tests/test_integration.py tests/test_edge_cases.py -v
+
+# Or the full project suite (265 tests as of Phase 6):
+pytest tests/ -q
 ```
 
 ## Target variable
@@ -474,8 +553,8 @@ pytest tests/test_app.py -v
 | 3 | Supervised model training: Logistic Regression → Random Forest → XGBoost, hyperparameter tuning, evaluation, threshold optimization, feature importance |
 | 4A | Explainable AI layer: `ExplainabilityEngine` (SHAP), `RiskScoringEngine`, configurable business thresholds, fairness assessment |
 | 4B | Borrower segmentation: `SegmentationEngine`, clustering algorithm/optimal-k comparison, data-driven segment naming, business recommendations |
-| 5 (this commit) | Streamlit dashboard: 8-page multipage app orchestrating all four engines, professional theme, caching, exportable reports |
-| 6 | Integration testing, performance optimization & deployment |
+| 5 | Streamlit dashboard: 8-page multipage app orchestrating all four engines, professional theme, caching, exportable reports |
+| 6 (this commit) | Integration testing (18 tests), edge-case testing (25 tests), performance optimization (caching), code cleanup, logging, deployment prep |
 | 7 | Final code review, documentation & presentation assets |
 
 ## Notes for future phases
@@ -505,14 +584,21 @@ pytest tests/test_app.py -v
   `.to_json()` output is wired to `st.download_button(...)`. Business
   thresholds are editable via `reports/risk_threshold_config.json`
   without touching any engine's or page's code.
-- Phase 6 (integration testing / performance / deployment): `tests/test_app.py`
-  already exercises every page headlessly via `AppTest` — extend it
-  rather than writing a parallel test harness. For deployment, the app
-  expects `streamlit run app/app.py` from the project root (so relative
-  paths in `.streamlit/config.toml` resolve); `app/common.py`'s
-  `st.cache_resource` calls mean cold-start cost (model loading, SHAP
-  background sampling, segmentation fit) is paid once per server
-  process, not per user session.
+- Phase 6 (integration testing / performance / deployment) is now
+  complete: `tests/test_integration.py` and `tests/test_edge_cases.py`
+  join `tests/test_app.py` for headless, `AppTest`/pytest-based
+  verification — extend these rather than writing a parallel test
+  harness. For deployment, the app expects `streamlit run app/app.py`
+  from the project root (so relative paths in `.streamlit/config.toml`
+  resolve); `app/common.py`'s `st.cache_resource`/`st.cache_data` calls
+  mean cold-start cost (model loading, SHAP background sampling,
+  segmentation fit, t-SNE/learning-curve computation) is paid once per
+  server process or per distinct cache key, not on every rerun. See
+  `PERFORMANCE_REPORT.md` for measured numbers, `QA_CHECKLIST.md` for
+  what's been verified and how, and `DEPLOYMENT.md` for environment
+  setup and platform-specific launch guidance.
 - Phase 7 (final documentation/presentation): `app/app_pages/about_project.py`
   already contains the methodology/PDID/limitations narrative in a
-  form suitable for reuse in a written report or slide deck.
+  form suitable for reuse in a written report or slide deck;
+  `PERFORMANCE_REPORT.md` and `QA_CHECKLIST.md` are similarly reusable
+  as appendices for a final report.

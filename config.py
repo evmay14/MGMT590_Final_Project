@@ -27,6 +27,7 @@ configuration and should have no side effects on import.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List
 
@@ -35,8 +36,12 @@ from typing import Dict, List
 # ---------------------------------------------------------------------------
 # PROJECT_ROOT resolves to the top-level project folder regardless of the
 # current working directory from which a script/notebook is launched, as
-# long as this file stays at <PROJECT_ROOT>/src/config.py.
-PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
+# long as this file stays at <PROJECT_ROOT>/src/config.py. This can be
+# overridden via the MGMT590_PROJECT_ROOT environment variable -- useful
+# in containerized deployments where data/model artifacts are mounted at
+# a different path than the source code itself (e.g. a read-only image
+# with a separate writable volume for data/models/reports/logs).
+PROJECT_ROOT: Path = Path(os.environ.get("MGMT590_PROJECT_ROOT", str(Path(__file__).resolve().parents[1])))
 
 DATA_DIR: Path = PROJECT_ROOT / "data"
 RAW_DATA_DIR: Path = DATA_DIR / "raw"
@@ -286,7 +291,10 @@ STRATIFY_COLUMN: str = TARGET_COLUMN
 # ---------------------------------------------------------------------------
 # 7. LOGGING
 # ---------------------------------------------------------------------------
-LOG_LEVEL: int = logging.INFO
+# Overridable via the MGMT590_LOG_LEVEL environment variable (e.g. set to
+# "WARNING" in a production deployment to reduce log volume without a
+# code change). Falls back silently to INFO for any unrecognized value.
+LOG_LEVEL: int = getattr(logging, os.environ.get("MGMT590_LOG_LEVEL", "INFO").upper(), logging.INFO)
 LOG_FORMAT: str = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 LOG_DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S"
 

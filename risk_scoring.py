@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
@@ -185,8 +186,15 @@ class RiskScoringEngine:
         Returns
         -------
         np.ndarray
-            Predicted probability of default (class 1) per row.
+            Predicted probability of default (class 1) per row. Returns
+            an empty array (rather than raising sklearn's lower-level
+            "minimum of 1 sample required" error) if `X` has zero rows --
+            a zero-row batch is a valid, if uninteresting, input (e.g. a
+            fully-filtered dashboard view) and should degrade gracefully.
         """
+        if len(X) == 0:
+            logger.info("predict_probability called with an empty DataFrame -- returning an empty array.")
+            return np.array([])
         return self.pipeline.predict_proba(X)[:, 1]
 
     def predict(self, X: pd.DataFrame, threshold: Optional[float] = None) -> np.ndarray:
@@ -484,7 +492,7 @@ def expand_threshold_analysis(
 
 def plot_expanded_threshold_analysis(
     threshold_table: pd.DataFrame, recommended_threshold: float, model_display_name: str,
-) -> "plt.Figure":
+) -> plt.Figure:
     """
     Six-panel visualization of the expanded threshold analysis:
     threshold vs. precision, recall, F1, approval rate, false-positive
@@ -503,8 +511,6 @@ def plot_expanded_threshold_analysis(
     -------
     matplotlib.figure.Figure
     """
-    import matplotlib.pyplot as plt  # local import: risk_scoring.py otherwise has no plotting dependency
-
     panels = [
         ("precision", "Precision", "#2E86AB"),
         ("recall", "Recall", "#C0392B"),
